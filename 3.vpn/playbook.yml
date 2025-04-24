@@ -1,0 +1,91 @@
+- name: OpenVPN Setup
+  hosts: openvpn
+  become: true
+  vars_files:
+    - vars.yml
+
+  tasks:
+    - name: Update & install packages
+      apt:
+        name:
+          - openvpn
+          - easy-rsa
+        update_cache: yes
+        state: present
+
+    - name: Copy easy-rsa
+      command: cp -r /usr/share/easy-rsa /etc/openvpn/easy-rsa creates=/etc/openvpn/easy-rsa
+
+    - name: Init PKI
+      command: ./easyrsa init-pki
+      args:
+        chdir: /etc/openvpn/easy-rsa
+
+    - name: Build CA
+      command: ./easyrsa build-ca nopass
+      args:
+        chdir: /etc/openvpn/easy-rsa
+      environment:
+        EASYRSA_BATCH: "1"
+
+    - name: Generate Server Cert & Key
+      shell: |
+        ./easyrsa gen-req server nopass
+        ./easyrsa sign-req server server
+      args:
+        chdir: /etc/openvpn/easy-rsa
+      environment:
+        EASYRSA_BATCH: "1"
+
+    - name: Generate client cert
+      shell: |
+        ./easyrsa gen-req {{ client_name }} nopass
+        ./easyrsa sign-req client {{ client_name }}
+      args:
+        chdir: /etc/openvpn/easy-rsa
+      environment:
+        EASYRSA_BATCH: "1"
+
+    - name: Generate DH and TLS key
+      shell: |
+        ./easyrsa gen-dh
+        openvpn --genkey --secret ta.key
+      args:
+        chdir: /etc/openvpn/easy-rsa
+
+    - name: Copy server files
+      copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+      loop:
+        - { src: '/etc/openvpn/easy-rsa/pki/ca.crt', dest: '/etc/openvpn/ca.crt' }
+        - { src: '/etc/openvpn/easy-rsa/pki/dh.pem', dest: '/etc/openvpn/dh.pem' }
+        - { src: '/etc/openvpn/easy-rsa/pki/private/server.key', dest: '/etc/openvpn/server.key' }
+        - { src: '/etc/openvpn/easy-rsa/pki/issued/server.crt', dest: '/etc/openvpn/server.crt' }
+        - { src: '/etc/openvpn/easy-rsa/ta.key', dest: '/etc/openvpn/ta.key' }
+
+    - name: Upload server config
+      template:
+        src: templates/server.conf.j2
+        dest: /etc/openvpn/server.conf
+
+    - name: Enable and start OpenVPN
+      systemd:
+        name: openvpn@server
+        enabled: yes
+        state: started
+
+    - name: Read certs for client config
+      set_fact:
+        ca_crt: "{{ lookup('file', '/etc/openvpn/easy-rsa/pki/ca.crt') }}"
+        client_crt: "{{ lookup('file', '/etc/openvpn/easy-rsa/pki/issued/' + client_name + '.crt') }}"
+        client_key: "{{ lookup('file', '/etc/openvpn/easy-rsa/pki/private/' + client_name + '.key') }}"
+        ta_key: "{{ lookup('file', '/etc/openvpn/easy-rsa/ta.key') }}"
+
+    - name: Create client.ovpn
+      template:
+        src: templates/client.ovpn.j2
+        dest: "/home/ubuntu/{{ client_name }}.ovpn"
+      vars:
+        server_ip: "{{ ansible_host }}"
+

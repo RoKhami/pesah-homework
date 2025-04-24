@@ -1,0 +1,32 @@
+---
+- name: Install and enable route53_ip_check service on remote machine
+  hosts: ec2_instance
+  become: yes
+  vars:
+    script_path: /usr/local/bin/route53_ip_check.sh
+    service_path: /etc/systemd/system/route53_ip_check.service
+
+  tasks:
+
+    - name: Copy the route53_ip_check script to the remote server
+      copy:
+        src: route53_ip_check.sh
+        dest: "{{ script_path }}"
+        mode: '0755'
+
+    - name: Copy the systemd service file
+      copy:
+        src: route53_ip_check.service
+        dest: "{{ service_path }}"
+        mode: '0644'
+
+    - name: Reload systemd to recognize the new service
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable and start the route53_ip_check service
+      systemd:
+        name: route53_ip_check.service
+        enabled: yes
+        state: started
+

@@ -1,0 +1,11 @@
+[Unit]
+Description=Update DNS A record in Route 53
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/route53_ip_check.sh
+Type=oneshot
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target

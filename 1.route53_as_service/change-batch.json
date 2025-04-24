@@ -1,0 +1,18 @@
+{
+  "Comment": "Update IP address for ansible-ron.aws.cts.care.",
+  "Changes": [
+    {
+      "Action": "UPSERT",
+      "ResourceRecordSet": {
+        "Name": "ansible-ron.aws.cts.care.",
+        "Type": "A",
+        "TTL": 300,
+        "ResourceRecords": [
+          {
+            "Value": "None"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+version: '3'
+
+services:
+  jenkins:
+    build: .
+    container_name: jenkins_from_compose
+#    ports:
+#      - "8080:8080"
+#      - "50000:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    group_add:
+      - "999"
+    restart: unless-stopped
+    network_mode: "host"
+
+  vault:
+    image: hashicorp/vault:latest
+    container_name: vault_from_compose
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: testtoken
+    volumes:
+      - vault-data:/var/lib/vault
+    restart: unless-stopped
+    network_mode: "host"
+
+volumes:
+  jenkins_home:
+  vault-data:
+

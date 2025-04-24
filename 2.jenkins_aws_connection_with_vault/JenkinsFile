@@ -1,0 +1,51 @@
+pipeline {
+    agent any
+
+    environment {
+        VAULT_ADDR = 'http://localhost:8200'
+        VAULT_SECRET_PATH = 'secret/data/aws'
+        AWS_REGION = 'il-central-1'
+        RECORD_NAME = 'ansible-ron.aws.cts.care.'
+        HOSTED_ZONE_ID = 'Z1015433RZV9CXS5NKKV'
+    }
+
+    stages {
+        stage('Get AWS credentials from Vault') {
+            steps {
+                withCredentials([string(credentialsId: 'vault_token', variable: 'VAULT_TOKEN_JENKINS')]) {
+                    script {
+                        def res = sh(
+                            script: """
+                                curl -s --header "X-Vault-Token: ${VAULT_TOKEN_JENKINS}" \\
+                                ${VAULT_ADDR}/v1/${VAULT_SECRET_PATH}
+                            """,
+                            returnStdout: true
+                        ).trim()
+
+                        def key = sh(script: "echo '${res}' | jq -r .data.data.aws_access_key_id", returnStdout: true).trim()
+                        def secret = sh(script: "echo '${res}' | jq -r .data.data.aws_secret_access_key", returnStdout: true).trim()
+
+                        env.AWS_ACCESS_KEY_ID = key
+                        env.AWS_SECRET_ACCESS_KEY = secret
+                    }
+                }
+            }
+        }
+
+        stage('IP from Route53') {
+            steps {
+                sh '''
+                    RECORD=$(aws route53 list-resource-record-sets \
+                        --region $AWS_REGION \
+                        --hosted-zone-id $HOSTED_ZONE_ID \
+                        --query "ResourceRecordSets[?Name == '$RECORD_NAME']" \
+                        --output json)
+
+                    ip=$(echo $RECORD | jq -r '.[0].ResourceRecords[0].Value')
+
+                    echo "The ip of ${RECORD_NAME} in route53 is: ${ip}"
+                '''
+            }
+        }
+    }
+}

@@ -1,0 +1,6 @@
+all:
+  hosts:
+    openvpn:
+      ansible_host: 51.17.115.175
+      ansible_user: ubuntu
+      ansible_ssh_private_key_file: ~/.ssh/imtech.pem
